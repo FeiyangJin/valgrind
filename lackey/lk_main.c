@@ -240,6 +240,9 @@ static ULong n_Jccs          = 0;
 static ULong n_Jccs_untaken  = 0;
 static ULong n_IJccs         = 0;
 static ULong n_IJccs_untaken = 0;
+static ULong n_total_instructions = 0;
+static ULong n_total_loads = 0;
+static ULong n_total_stores = 0;
 
 static void add_one_func_call(void)
 {
@@ -392,6 +395,8 @@ static void print_details ( void )
                 detailCounts[OpStore][typeIx],
                 detailCounts[OpAlu  ][typeIx]
       );
+      n_total_loads = n_total_loads + detailCounts[OpLoad ][typeIx];
+      n_total_stores = n_total_stores + detailCounts[OpStore][typeIx];
    }
 }
 
@@ -454,7 +459,8 @@ static Int   events_used = 0;
 
 static VG_REGPARM(2) void trace_instr(Addr addr, SizeT size)
 {
-   VG_(printf)("I  %08lx,%lu\n", addr, size);
+   // VG_(printf)("I  %08lx,%lu\n", addr, size);
+   n_total_instructions ++;
 }
 
 static VG_REGPARM(2) void trace_load(Addr addr, SizeT size)
@@ -537,6 +543,7 @@ static void addEvent_Ir ( IRSB* sb, IRAtom* iaddr, UInt isize )
    evt->size  = isize;
    evt->guard = NULL;
    events_used++;
+   // n_total_instructions++;
 }
 
 /* Add a guarded read event. */
@@ -713,6 +720,8 @@ IRSB* lk_instrument ( VgCallbackClosure* closure,
          addStmtToIRSB( sbOut, IRStmt_Dirty(di) );
       }
       
+      // n_total_instructions ++;
+
       switch (st->tag) {
          case Ist_NoOp:
          case Ist_AbiHint:
@@ -927,7 +936,7 @@ IRSB* lk_instrument ( VgCallbackClosure* closure,
             break;
          }
 
-         case Ist_Exit:
+         case Ist_Exit:{
             if (clo_basic_counts) {
                // The condition of a branch was inverted by VEX if a taken
                // branch is in fact a fall trough according to client address
@@ -971,6 +980,7 @@ IRSB* lk_instrument ( VgCallbackClosure* closure,
                addStmtToIRSB( sbOut, IRStmt_Dirty(di) );
             }
             break;
+         }
 
          default:
             ppIRStmt(st);
@@ -1040,6 +1050,16 @@ static void lk_fini(Int exitcode)
    if (clo_basic_counts) {
       VG_(umsg)("\n");
       VG_(umsg)("Exit code:       %d\n", exitcode);
+   }
+
+	VG_(umsg)("Modified by Feiyang Jin \n");
+   VG_(umsg)("Total instructions %llu \n", n_total_instructions);
+
+   if (clo_detailed_counts) {
+      VG_(umsg)("Total loads %llu \n", n_total_loads);
+      VG_(umsg)("Total stores %llu \n", n_total_stores);
+      float percentage = (float) (n_total_loads + n_total_stores) / (float) n_total_instructions;
+      VG_(umsg)("load/store percentage %.6f \n", percentage);
    }
 }
 
